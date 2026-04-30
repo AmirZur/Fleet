@@ -44,10 +44,10 @@ public:
 
 	std::map<key_t,INNER> factors;
 	
-	Lexicon() : MCMCable<this_t,datum_t>()  { }
-	
+	Lexicon() { }
 	/**
-	 * @brief Return the number of factors
+	 * @brief Sample with n factors
+	 * @param n
 	 * @return 
 	 */	
 	size_t nfactors() const  {

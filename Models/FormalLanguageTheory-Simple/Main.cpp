@@ -246,12 +246,12 @@ int main(int argc, char** argv){
 	
 //		CERR h.born_chain_idx TAB h.string() ENDL;
 //	
-//		if(idx++ % 10000 == 1) {
-//			samp.show_statistics();
-//		}
+		// if(idx++ % 10000 == 1) {
+		// 	samp.show_statistics();
+		// }
 
 	}
-	//top.print();
+	top.print();
 
 
 

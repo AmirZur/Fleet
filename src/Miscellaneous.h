@@ -17,7 +17,8 @@ std::string system_exec(const char* cmd) {
 		
     std::array<char, 1024> buffer;
     std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    using PcloseType = int(*)(FILE*);
+    std::unique_ptr<FILE, PcloseType> pipe(popen(cmd, "r"), static_cast<PcloseType>(pclose));
     if(!pipe) {
         throw std::runtime_error("popen() failed!");
     }

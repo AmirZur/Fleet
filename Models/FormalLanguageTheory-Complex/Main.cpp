@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 #include <numeric> // for gcd
+#include <filesystem>
+#include <fstream>
+#include <chrono>
 
 #include "Data.h"
 
@@ -29,7 +32,7 @@ const double MAX_TEMP = 1.20;
 unsigned long PRINT_STRINGS; // print at most this many strings for each hypothesis
 
 //std::vector<S> data_amounts={"1", "2", "5", "10", "20", "50", "100", "200", "500", "1000", "2000", "5000", "10000", "50000", "100000"}; // how many data points do we run on?
-std::vector<S> data_amounts={"100"}; // 
+std::vector<S> data_amounts={"100000"}; // 
 
 size_t current_ntokens = 0; // how many tokens are there currently? Just useful to know
 
@@ -38,11 +41,12 @@ const std::string errorstring = "<err>";
 #include "MyGrammar.h"
 #include "MyHypothesis.h"
 
-std::string prdata_path = ""; 
-std::vector<MyHypothesis::datum_t> prdata; // used for computing precision and recall -- in case we want to use more strings?
+std::string prdata_path = "";
+std::vector<MyHypothesis::datum_t> prdata_store;
+MyHypothesis::data_t prdata = prdata_store; // used for computing precision and recall -- in case we want to use more strings?
 S current_data = "";
 bool long_output = false; // if true, we allow extra strings, recursions etc. on output
-std::pair<double,double> mem_pr; 
+std::pair<double,double> mem_pr;
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // Main
@@ -74,6 +78,40 @@ int main(int argc, char** argv){
 	fleet.add_flag("-l,--long-output",  long_output, "Allow extra computation/recursion/strings when we output");
 	fleet.initialize(argc, argv); 
 
+	// create an output directory for structured results
+	std::filesystem::path output_dir(FleetArgs::output_path);
+	if(output_dir.empty()) output_dir = "output";
+	std::filesystem::create_directories(output_dir);
+
+	// save the exact invocation and basic configuration
+	{
+		std::ofstream config_out(output_dir / "config.txt");
+		config_out << "command=";
+		for(int i=0;i<argc;i++) {
+			if(i) config_out << ' ';
+			config_out << argv[i];
+		}
+		config_out << "\n";
+		config_out << "output_dir=" << output_dir.string() << "\n";
+		config_out << "input=" << FleetArgs::input_path << "\n";
+		config_out << "prdata_path=" << prdata_path << "\n";
+		config_out << "data_amounts=";
+		for(size_t i=0;i<data_amounts.size();i++) {
+			if(i) config_out << ",";
+			config_out << data_amounts[i];
+		}
+		config_out << "\n";
+		config_out << "alphabet=" << alphabet << "\n";
+		config_out << "nfactors=" << nfactors << "\n";
+		config_out << "maxlength=" << max_length << "\n";
+		config_out << "long_output=" << (long_output ? "true" : "false") << "\n";
+		config_out << "threads=" << FleetArgs::nthreads << "\n";
+		config_out << "time=" << FleetArgs::timestring << "\n";
+		config_out << "top=" << FleetArgs::ntop << "\n";
+		config_out << "thin=" << FleetArgs::thin << "\n";
+		config_out << "restart=" << FleetArgs::restart << "\n";
+	}
+
 	// since we are only storing the top, we can ignore repeats from MCMC 
 	FleetArgs::MCMCYieldOnlyChanges = true;
 	
@@ -100,20 +138,21 @@ int main(int argc, char** argv){
 	// Input here is going to specify the PRdata path, minus the txt
 	if(prdata_path == "") {	prdata_path = FleetArgs::input_path+".txt"; }
 	
-	load_data_file(prdata, prdata_path.c_str()); // put all the data in prdata
-	for(auto d : prdata) {	// Add a check for any data not in the alphabet
+	load_data_file(prdata_store, prdata_path.c_str()); // put all the data in prdata_store
+	prdata = prdata_store;
+	for(auto d : prdata) { 	// Add a check for any data not in the alphabet
 		check_alphabet(d.output, alphabet);
 	}
 	
 	// We are going to build up the data
-	std::vector<MyHypothesis::data_t> datas; // load all the data	
-	for(size_t i=0;i<data_amounts.size();i++){ 
-		MyHypothesis::data_t d;
+	std::vector<std::vector<MyHypothesis::datum_t>> datas_store;
+	std::vector<MyHypothesis::data_t> datas; // load all the data
+	for(size_t i=0;i<data_amounts.size();i++){
+		datas_store.emplace_back();
 		
-		S data_path = FleetArgs::input_path + "-" + data_amounts[i] + ".txt";	
-		load_data_file(d, data_path.c_str());
-		
-		datas.push_back(d);
+		S data_path = FleetArgs::input_path + "-" + data_amounts[i] + ".txt";
+		load_data_file(datas_store.back(), data_path.c_str());
+		datas.emplace_back(datas_store.back());
 	}
 
 	// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -129,7 +168,7 @@ int main(int argc, char** argv){
 	// where to store these hypotheses
 	TopN<MyHypothesis> all; 
 	
-	ParallelTempering samp(h0, &datas[0], FleetArgs::nchains, MAX_TEMP); 
+	ParallelTempering samp(h0, datas[0], FleetArgs::nchains, MAX_TEMP); 
 //	ChainPool samp(h0, &datas[0], FleetArgs::nchains);
 	
 	// Set these up as the defaults as below
@@ -137,11 +176,12 @@ int main(int argc, char** argv){
 	VirtualMachineControl::MAX_OUTPUTS = 256; 
 	VirtualMachineControl::MIN_LP = -15;
 	PRINT_STRINGS = 512;	
-	
+	auto run_start = std::chrono::steady_clock::now();
+
 	for(size_t di=0;di<datas.size() and !CTRL_C;di++) {
 		auto& this_data = datas[di];
 		
-		samp.set_data(&this_data, true);
+		samp.set_data(this_data, true);
 		
 		// compute the prevision and recall if we just memorize the data
 		{
@@ -176,6 +216,19 @@ int main(int argc, char** argv){
 
 		all.print(data_amounts[di]);
 		
+		{
+			auto suffix = data_amounts[di];
+			auto top_path = std::filesystem::path(FleetArgs::output_path) / ("top-hypotheses-" + suffix + ".txt");
+			std::ofstream top_out(top_path);
+			top_out << "distribution\tposterior\tprior\tlikelihood\tprecision\trecall\tstring\n";
+			for(auto& h : all.sorted(false)) {
+				auto o = h.call(EMPTY_STRING, errorstring);
+				auto dist = o.string(PRINT_STRINGS);
+				auto [prec, rec] = get_precision_and_recall(o, prdata, PREC_REC_N);
+				top_out << dist << '\t' << h.posterior << '\t' << h.prior << '\t' << h.likelihood << '\t' << prec << '\t' << rec << '\t' << h.string() << '\n';
+			}
+		}
+		
 		// restore
 		if(long_output) {
 			VirtualMachineControl::MAX_STEPS  = 1024; 
@@ -189,7 +242,18 @@ int main(int argc, char** argv){
 		}
 		
 	}
-	
+
+	auto run_end = std::chrono::steady_clock::now();
+	double elapsed_seconds = std::chrono::duration<double>(run_end - run_start).count();
+	std::ofstream metrics_out(std::filesystem::path(FleetArgs::output_path) / "metrics.txt");
+	metrics_out << "elapsed_seconds=" << elapsed_seconds << "\n";
+	double samples_per_second = elapsed_seconds > 0 ? double(FleetStatistics::global_sample_count) / elapsed_seconds : 0.0;
+	metrics_out << "samples_per_second=" << samples_per_second << "\n";
+	metrics_out << "global_sample_count=" << FleetStatistics::global_sample_count << "\n";
+	metrics_out << "depth_exceptions=" << FleetStatistics::depth_exceptions << "\n";
+	metrics_out << "posterior_calls=" << FleetStatistics::posterior_calls << "\n";
+	metrics_out << "vm_ops_per_second=" << ((FleetStatistics::vm_ops / 1000000.0) / (elapsed_seconds > 0 ? elapsed_seconds : 1.0)) << "\n";
+
 }
 
 #endif

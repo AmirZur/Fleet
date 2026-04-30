@@ -26,14 +26,14 @@ void load_data_file(std::vector<datum_t> &data, const char* datapath) {
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // TODO: Put all this into another library
 
-template<typename T, typename TDATA>
-std::map<T, double> highest(const std::vector<TDATA>& m, unsigned long N) {
+template<typename T, typename TDATA, typename Container>
+std::map<T, double> highest(const Container& m, unsigned long N) {
 	// take a type of data and make a map of strings to counts, pulling out the top N
 	// and converting into a map
 
 	std::map<T, double> out;
 	
-	std::vector<TDATA> v = m; 
+	std::vector<TDATA> v(std::begin(m), std::end(m));
 	std::sort(v.begin(), v.end(), [](auto x, auto y){ return x.count > y.count; });
 	
 	for(size_t i=0;i<std::min(N, v.size()); i++) {
@@ -45,7 +45,7 @@ std::map<T, double> highest(const std::vector<TDATA>& m, unsigned long N) {
 
 
 template<typename TDATA>
-std::pair<double, double> get_precision_and_recall(DiscreteDistribution<std::string>& model, std::span<TDATA>& data, unsigned long N) {
+std::pair<double, double> get_precision_and_recall(DiscreteDistribution<std::string>& model, std::span<TDATA> data, unsigned long N) {
 	// How many of the top N generated strings appear *anywhere* in the data
 	// And how many of the top N data appear *anywhere* in the generated strings
 	// Note: This is a little complicated if the data has fewer strings that the model, since we don't
