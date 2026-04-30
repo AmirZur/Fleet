@@ -1,6 +1,6 @@
-nlprun -q jag -g 0 -r 40G -o logs/chomsky_f1.log 'bash run_chomsky.sh 1'
-nlprun -q jag -g 0 -r 40G -o logs/chomsky_f2.log 'bash run_chomsky.sh 2'
-nlprun -q jag -g 0 -r 40G -o logs/chomsky_f4.log 'bash run_chomsky.sh 4'
-nlprun -q jag -g 0 -r 40G -o logs/chomsky_f8.log 'bash run_chomsky.sh 8'
-nlprun -q jag -g 0 -r 40G -o logs/chomsky_f16.log 'bash run_chomsky.sh 16'
-nlprun -q jag -g 0 -r 40G -o logs/chomsky_f32.log 'bash run_chomsky.sh 32'
+nlprun -q jag -g 0 -r 40G -o logs/chomsky_f1.log "bash run_chomsky.sh 1"
+nlprun -q jag -g 0 -r 40G -o logs/chomsky_f2.log "bash run_chomsky.sh 2"
+nlprun -q jag -g 0 -r 40G -o logs/chomsky_f4.log "bash run_chomsky.sh 4"
+nlprun -q jag -g 0 -r 40G -o logs/chomsky_f8.log "bash run_chomsky.sh 8"
+nlprun -q jag -g 0 -r 40G -o logs/chomsky_f16.log "bash run_chomsky.sh 16"
+nlprun -q jag -g 0 -r 40G -o logs/chomsky_f32.log "bash run_chomsky.sh 32"
